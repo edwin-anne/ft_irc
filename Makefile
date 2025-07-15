@@ -17,7 +17,7 @@ CFLAGS          = -Wall -Wextra -Werror -Iincludes -std=c++98
 SRCDIR          = src
 OBJDIR          = obj
 SOURCES         = $(wildcard $(SRCDIR)/**/*.cpp) $(wildcard $(SRCDIR)/*.cpp)
-OBJECTS         = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+OBJECTS         = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Colors for output
 GREEN           = \033[0;32m
@@ -34,7 +34,7 @@ $(NAME): $(OBJECTS)
 	@$(CC) $(CFLAGS) $(OBJECTS) -o $(NAME)
 	@echo "$(GREEN)✓ $(NAME) compiled successfully!$(NC)"
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(dir $@)
 	@echo "$(YELLOW)Compiling $<...$(NC)"
 	@$(CC) $(CFLAGS) -c $< -o $@
