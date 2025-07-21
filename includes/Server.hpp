@@ -6,7 +6,7 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:40 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/15 11:53:41 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/21 21:39:18 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -60,6 +60,7 @@ class Server
 		Client* GetClientByFd(int fd); // Récupère un client par son descripteur de fichier
 		Client* GetClientByNick(const std::string& nickname); // Récupère un client par son pseudo
 		bool IsNicknameTaken(const std::string &nickname); // Vérifie si un pseudo est déjà pris
+		std::string getPassword() const; // Getter pour le mot de passe du serveur
 
 		// Signal
 		static void SignalHandler(int signum); // Gestion des signaux
