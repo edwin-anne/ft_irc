@@ -3,14 +3,15 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandlers.cpp                                :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
+/*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/21 21:41:45 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/21 22:52:02 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "CommandHandlers.hpp"
+#include "Channel.hpp"
 
 void handleNick(Server& server, int fd, const std::vector<std::string>& tokens) 
 {
@@ -48,7 +49,7 @@ void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
         server.SendMessage(fd, "462 :You may not reregister\r\n");
         return;
     }
-    if (tokens[1] == server.getPassword()) // -> besoin d'implémenter un getter pour un attr privé.
+    if (tokens[1] == server.getPassword())
     {
         client->SetAuthenticated(true);
         server.SendMessage(fd, "NOTICE AUTH : Password accepted\r\n");
@@ -92,23 +93,63 @@ void handlePing(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
     {
-        server.SendMessage(fd, "409 :No irigin specified\r\n");
+        server.SendMessage(fd, "409 :No origin specified\r\n");
         return;
     }
+    server.SendMessage(fd, "PONG " + tokens[1] + "\r\n");
 }
-/*void handleQuit(Server& server, int fd, const std::vector<std::string>& tokens)
+void handleQuit(Server& server, int fd, const std::vector<std::string>& tokens)
 {
-    
+    Client *client = server.GetClientByFd(fd);
+    if (!client)
+        return;
+    std::string quitMsg = "Client quit";
+    if (tokens.size() > 1)
+    {
+        quitMsg = tokens[1];
+        for (size_t i = 2; i < tokens.size(); i++)
+            quitMsg += " " + tokens[i];
+    }
+    server.SendMessage(fd, "ERROR :Closing Link: " + quitMsg + "\r\n");
+    server.ClearClients(fd);
 }
 void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
 {
-    
+    if (tokens.size() < 2)
+    {
+        server.SendMessage(fd, "461 JOIN :Not enough parameters\r\n");
+        return;
+    }
+    std::string channelName = tokens[1];
+    if (channelName.empty() || (channelName[0] != '#' && channelName[0] != '&'))
+    {
+        server.SendMessage(fd, "476 " + channelName + " :Invalid channel name\r\n");
+        return;
+    }
+    Client *client = server.GetClientByFd(fd);
+    if (!client)
+        return;
+    if (!client->IsRegistered())
+    {
+        server.SendMessage(fd, "451 JOIN :You have not registered\r\n");
+        return;
+    }
+    Channel *channel = server.GetChannel(channelName);
+    if (!channel)
+        channel = server.CreateChannel(channelName);
+    channel->AddClient(fd);
+    server.SendMessage(fd, ":" + client->GetNickname() + " JOIN " + channelName + "\r\n");
 }
 void handlePart(Server& server, int fd, const std::vector<std::string>& tokens)
 {
+    if (tokens.size() < 2)
+    {
+        server.SendMessage(fd, "461 PART :Not enough parameters\r\n");
+        return;
+    }
     
 }
-void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& tokens)
+/*void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     
 }*/

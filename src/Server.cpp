@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
+/*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:50 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/21 21:40:22 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/21 22:35:28 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -166,17 +166,17 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 	// Une commande est reçue
 	// Les informations a la suite de la commande sont dans tokens
 	if (command == "PASS")
-		;
+		handlePass(*this, fd, tokens);
 	else if (command == "NICK")
 		handleNick(*this, fd, tokens);
 	else if (command == "USER")
 		handleUser(*this, fd, tokens);
 	else if (command == "PING")
-		;
+		handlePing(*this, fd, tokens);
 	else if (command == "QUIT")
-		;
+		handleQuit(*this, fd, tokens);
 	else if (command == "JOIN")
-		;
+		handleJoin(*this, fd, tokens);
 	else if (command == "PART")
 		;
 	else if (command == "PRIVMSG")
