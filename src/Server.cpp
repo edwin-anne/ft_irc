@@ -6,12 +6,13 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:50 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/15 11:56:23 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/21 21:40:22 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
 #include "irc.hpp"
+#include "CommandHandlers.hpp"
 
 bool Server::Signal = false;
 void Server::SignalHandler(int signum)
@@ -167,9 +168,9 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 	if (command == "PASS")
 		;
 	else if (command == "NICK")
-		;
+		handleNick(*this, fd, tokens);
 	else if (command == "USER")
-		;
+		handleUser(*this, fd, tokens);
 	else if (command == "PING")
 		;
 	else if (command == "QUIT")
@@ -215,6 +216,10 @@ bool Server::IsNicknameTaken(const std::string &nickname) {
 			return true;
 	}
 	return false;
+}
+
+std::string Server::getPassword() const {
+	return Password;
 }
 
 Channel* Server::GetChannel(const std::string& channelName) {
