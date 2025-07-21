@@ -3,15 +3,16 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
+/*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:50 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/15 11:56:23 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/21 21:02:56 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
 #include "irc.hpp"
+#include "CommandHandlers.hpp"
 
 bool Server::Signal = false;
 void Server::SignalHandler(int signum)
@@ -167,9 +168,9 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 	if (command == "PASS")
 		;
 	else if (command == "NICK")
-		;
+		handleNick(*this, fd, tokens);
 	else if (command == "USER")
-		;
+		handleUser(*this, fd, tokens);
 	else if (command == "PING")
 		;
 	else if (command == "QUIT")
