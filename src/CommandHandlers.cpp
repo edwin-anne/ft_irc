@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandlers.cpp                                :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
+/*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/21 21:30:59 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/21 21:41:45 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,7 +33,7 @@ void handleNick(Server& server, int fd, const std::vector<std::string>& tokens)
     }
 }
 
-/*void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
+void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2) 
     {
@@ -55,7 +55,8 @@ void handleNick(Server& server, int fd, const std::vector<std::string>& tokens)
     } else {
         server.SendMessage(fd, "464 : Password incorrect\r\n");
     }
-}*/
+}
+
 void handleUser(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 5)
