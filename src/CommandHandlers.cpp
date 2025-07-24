@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/24 23:29:03 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/25 00:01:42 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -230,4 +230,28 @@ void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& token
         std::string privmsg = ":" + client->GetNickname() + " PRIVMSG " + dest + " :" + message + "\r\n";
         server.SendMessage(target->GetFd(), privmsg);
     }
+}
+void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    if (tokens.size() < 2)
+    {
+        server.SendMessage(fd, "461 TOPIC :Not enough parameters\r\n");
+        return;
+    }  
+}
+void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    
+}
+void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    
+}
+void handleNames(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    
+}
+void handleList(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    
 }

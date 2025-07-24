@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:50 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/24 23:29:44 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/24 23:51:14 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -181,6 +181,16 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 		;
 	else if (command == "PRIVMSG")
 		handlePrivmsg(*this, fd, tokens);
+	else if (command == "TOPIC")
+		;
+	else if (command == "KICK")
+		;
+	else if (command == "INVITE")
+		;
+	else if (command == "NAMES")
+		;
+	else if (command == "LIST")
+		;
 	else
 		SendMessage(fd, "421 " + command + " :Unknown command\r\n");
 }
