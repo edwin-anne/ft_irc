@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:50 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/21 22:35:28 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/24 23:29:44 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -180,7 +180,7 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 	else if (command == "PART")
 		;
 	else if (command == "PRIVMSG")
-		;
+		handlePrivmsg(*this, fd, tokens);
 	else
 		SendMessage(fd, "421 " + command + " :Unknown command\r\n");
 }
