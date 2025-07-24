@@ -6,12 +6,94 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/11 21:03:43 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/23 13:13:13 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/24 11:34:35 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Channel.hpp"
 #include <algorithm>
+
+Channel::Channel(const std::string& channelName) : name(channelName), inviteOnly(false), topicRestricted(false), userLimit(-1) {}
+
+std::string Channel::GetName() const { 
+	return name; 
+}
+
+std::string Channel::GetTopic() const { 
+	return topic; 
+}
+
+std::vector<int> Channel::GetClients() const { 
+	return clients; 
+}
+
+void Channel::SetTopic(const std::string& newTopic) { 
+	topic = newTopic; 
+}
+
+size_t Channel::GetClientCount() const { 
+	return clients.size(); 
+}
+
+std::vector<int> Channel::GetOperators() const { 
+	return operators; 
+}
+
+void Channel::SetInviteOnly(bool enabled) { 
+	inviteOnly = enabled; 
+}
+
+bool Channel::IsInviteOnly() const { 
+	return inviteOnly; 
+}
+
+void Channel::SetTopicRestricted(bool enabled) { 
+	topicRestricted = enabled; 
+}
+
+bool Channel::IsTopicRestricted() const { 
+	return topicRestricted; 
+}
+
+void Channel::SetKey(const std::string& newKey) { 
+	key = newKey; 
+}
+
+void Channel::RemoveKey() { 
+	key.clear(); 
+}
+
+std::string Channel::GetKey() const { 
+	return key; 
+}
+
+bool Channel::HasKey() const { 
+	return !key.empty(); 
+}
+
+bool Channel::CheckKey(const std::string& providedKey) const { 
+	return key == providedKey; 
+}
+
+void Channel::SetUserLimit(int limit) { 
+	userLimit = limit; 
+}
+
+void Channel::RemoveUserLimit() { 
+	userLimit = -1; 
+}
+
+int Channel::GetUserLimit() const { 
+	return userLimit; 
+}
+
+bool Channel::HasUserLimit() const { 
+	return userLimit > 0; 
+}
+
+bool Channel::IsAtUserLimit() const { 
+	return HasUserLimit() && (int)clients.size() >= userLimit; 
+}
 
 void Channel::AddClient(int fd) {
 	if (!HasClient(fd))
