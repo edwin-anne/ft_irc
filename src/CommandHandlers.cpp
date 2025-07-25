@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/25 00:01:42 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/25 15:08:06 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -237,11 +237,94 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
     {
         server.SendMessage(fd, "461 TOPIC :Not enough parameters\r\n");
         return;
-    }  
+    }
+    std::string channelName = tokens[1];
+    Channel *channel = server.GetChannel(channelName);
+    if (!channel)
+    {
+        server.SendMessage(fd, " 403 " + channelName + " :No such channel\r\n");
+        return;
+    }
+    Client *client = server.GetClientByFd(fd);
+    if (!client || !channel->HasClient(fd))
+    {
+        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        return;
+    }
+    if (tokens.size() < 3)
+    {
+        std::string topic = channel->GetTopic();
+        if (topic.empty())
+            server.SendMessage(fd, "331 " + client->GetNickname() + " " + channelName + " :No topic is set\r\n");
+        else
+            server.SendMessage(fd, "332 " + client->GetNickname() + " " + channelName + " :" + topic + "\r\n");
+        return;
+    }
+    std::string newTopic;
+    if (tokens[2][0] == ':')
+        newTopic = tokens[2].substr(1);
+    else
+        newTopic = tokens[2];
+    for (size_t i = 3; i < tokens.size(); i++)
+    {
+        newTopic += " ";
+        newTopic += tokens[i];
+    }
+    // TODO: Vérifier le mode +t ici
+
 }
+
 void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
 {
-    
+    if (tokens.size() < 3)
+    {
+        server.SendMessage(fd, "461 KICK :Not enough parameters\r\n");
+        return;
+    }
+    std::string channelName = tokens[1];
+    Channel *channel = server.GetChannel(channelName);
+    if (!channel)
+    {
+        server.SendMessage(fd, "403 " + channelName + ": No such channel\r\n");
+        return;
+    }
+    Client *client = server.GetClientByFd(fd);
+    if (!client || !channel->HasClient(fd))
+    {
+        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        return;    
+    }
+    if (!channel->IsOperator(fd))
+    {
+        server.SendMessage(fd, "482 " + channelName + ": You're not channel operator\r\n");
+        return;
+    }
+    std::string targetNick = tokens[2];
+    Client *target = server.GetClientByNick(targetNick);
+    if (!target || !channel->HasClient(target->GetFd()))
+    {
+        server.SendMessage(fd, "441 " + targetNick + " " + channelName + " :They aren't on that channel\r\n");
+        return;
+    }
+    std::string comment = client->GetNickname();
+    if (tokens.size() > 3)
+    {
+        if (tokens[3][0] == ':')
+            comment = tokens[3].substr(1);
+        else
+            comment = tokens[3];
+        for (size_t i = 4; i < tokens.size(); ++i)
+        {
+            comment += " ";
+            comment += tokens[i];
+        }
+    }
+    std::string kickMsg = ":" + client->GetNickname() + "KICK " + channelName + " " + targetNick + " :" + comment + "\r\n";
+    server.BroadcastToChannel(channelName, kickMsg, -1);
+    server.SendMessage(target->GetFd(), kickMsg);
+    channel->RemoveClient(target->GetFd());
+    target->LeaveChannel(channelName);
+
 }
 void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens)
 {
