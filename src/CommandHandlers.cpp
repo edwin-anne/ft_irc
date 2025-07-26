@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/25 15:08:06 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/26 13:53:54 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,6 +14,11 @@
 #include "Channel.hpp"
 #include "Client.hpp"
 
+/**
+ * handleNick
+ * cmd NICK pour changer le pseudo d'un client.
+ * Vérifie la disponibilité du pseudo et met à jour le client.
+ */
 void handleNick(Server& server, int fd, const std::vector<std::string>& tokens) 
 {
     if (tokens.size() < 2) 
@@ -35,6 +40,11 @@ void handleNick(Server& server, int fd, const std::vector<std::string>& tokens)
     }
 }
 
+/**
+ * handlePass
+ * cmd PASS pour l'authentification par mot de passe.
+ * Vérifie le mot de passe et authentifie le client.
+ */
 void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2) 
@@ -59,6 +69,11 @@ void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
     }
 }
 
+/**
+ * handleUser
+ * cmd USER pour définir le nom d'utilisateur et le vrai nom.
+ * Enregistre le client si toutes les informations sont fournies.
+ */
 void handleUser(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 5)
@@ -90,6 +105,11 @@ void handleUser(Server& server, int fd, const std::vector<std::string>& tokens)
     }
 }
 
+/**
+ * handlePing
+ * cmd PING pour vérifier la connexion du client.
+ * Répond PONG.
+ */
 void handlePing(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
@@ -100,6 +120,11 @@ void handlePing(Server& server, int fd, const std::vector<std::string>& tokens)
     server.SendMessage(fd, "PONG " + tokens[1] + "\r\n");
 }
 
+/**
+ * handleQuit
+ * cmd QUIT pour déconnecter un client.
+ * Envoie un message de fermeture et supprime le client du serveur.
+ */
 void handleQuit(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     Client *client = server.GetClientByFd(fd);
@@ -116,6 +141,11 @@ void handleQuit(Server& server, int fd, const std::vector<std::string>& tokens)
     server.ClearClients(fd);
 }
 
+/**
+ * handleJoin
+ * cmd JOIN pour rejoindre un channel.
+ * Crée le channel si nécessaire et ajoute le client.
+ */
 void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
@@ -144,6 +174,11 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
     server.SendMessage(fd, ":" + client->GetNickname() + " JOIN " + channelName + "\r\n");
 }
 
+/**
+ * handlePart
+ * cmd PART pour quitter un channel.
+ * Retire le client du channel et informe les autres membres.
+ */
 void handlePart(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
@@ -172,6 +207,11 @@ void handlePart(Server& server, int fd, const std::vector<std::string>& tokens)
     server.SendMessage(fd, partMsg);
 }
 
+/**
+ * handlePrivmsg
+ * cmd PRIVMSG pour envoyer un message privé à un utilisateur ou un channel.
+ * Vérifie la validité du destinataire et du message.
+ */
 void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 3)
@@ -231,6 +271,12 @@ void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& token
         server.SendMessage(target->GetFd(), privmsg);
     }
 }
+
+/**
+ * handleTopic
+ * cmd TOPIC pour afficher ou modifier le sujet d'un channel.
+ * Vérifie les droits et met à jour le topic si nécessaire.
+ */
 void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
@@ -274,6 +320,11 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
 
 }
 
+/**
+ * handleKick
+ * cmd KICK pour exclure un utilisateur d'un channel.
+ * Vérifie les droits et retire le client ciblé du channel.
+ */
 void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 3)
@@ -326,15 +377,167 @@ void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
     target->LeaveChannel(channelName);
 
 }
+
+/**
+ * handleInvite
+ * cmd INVITE pour inviter un utilisateur dans un channel.
+ * Vérifie les droits et ajoute l'utilisateur à la liste des invités.
+ */
 void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens)
 {
+    if (tokens.size() < 3)
+    {
+        server.SendMessage(fd, "461 INVITE :Not enough parameters\r\n");
+        return;
+    }
+    std::string channelName = tokens[1];
+    std::string inviterNick = tokens[2];
     
+    Channel *channel = server.GetChannel(channelName);
+    if (!channel)
+    {
+        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
+        return;
+    }
+    Client *client = server.GetClientByFd(fd);
+    if (!client || !channel->HasClient(fd))
+    {
+        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        return;
+    }
+    
+    Client *inviter = server.GetClientByNick(inviterNick);
+    if (!inviter)
+    {
+        server.SendMessage(fd, "401 " + inviterNick + " :No such nick/channel\r\n");
+        return;
+    }
+    if (channel->HasClient(inviter->GetFd()))
+    {
+        server.SendMessage(fd, "443 " + inviterNick + " " + channelName + " :is already on channel\r\n");
+        return;
+    }
+
+    channel->AddClient(inviter->GetFd());
+    std::string inviteMsg = ":" + client->GetNickname() + " INVITE " + inviterNick + " :" + channelName + "\r\n";
+    server.SendMessage(inviter->GetFd(), inviteMsg);
+    server.SendMessage(fd, "341 " + client->GetNickname() + " " + inviterNick + " " + channelName + "\r\n");
 }
+
+/**
+ * handleNames
+ * cmd NAMES pour lister les membres d'un channel ou de tous les channels visibles.
+ * Envoie la liste des pseudos au client.
+ */
 void handleNames(Server& server, int fd, const std::vector<std::string>& tokens)
 {
-    
+    std::string channelName;
+    if (tokens.size() > 1)
+        channelName = tokens[1];
+
+    Client *client = server.GetClientByFd(fd);
+    std::string nick = client ? client->GetNickname() : "*";
+    if (!channelName.empty())
+    {
+        Channel *channel = server.GetChannel(channelName);
+        if (!channel)
+        {
+            server.SendMessage(fd, "366 " + nick + " " + channelName + " :End of /NAMES list.\r\n");
+            return;
+        }
+        if ((channel->IsInviteOnly() || channel->IsTopicRestricted()) && !channel->HasClient(fd))
+        {
+            server.SendMessage(fd, "366 " + nick + " " + channelName + " :End of /NAMES list.\r\n");
+            return;
+        }
+        std::vector<int> membersList = channel->GetClients();
+        std::string namesList;
+        for (size_t i = 0; i < membersList.size(); i++)
+        {
+            Client *member = server.GetClientByFd(membersList[i]);
+            if (!member)
+                continue;
+            if (channel->IsOperator(membersList[i]))
+                namesList += "@";
+            namesList += member->GetNickname();
+            if (i + 1 < membersList.size())
+                namesList += " ";
+        }
+        server.SendMessage(fd, "353 " + nick + " = " + channelName + " :" + namesList + "\r\n");
+        server.SendMessage(fd, "366 " + nick + " " + channelName + " :End of /NAMES list.\r\n");
+    }
+    else
+    {
+        for (size_t k = 0; k < server.channels.size(); ++k)
+        {
+            Channel &channel = server.channels[k];
+            if ((channel.IsInviteOnly() || channel.IsTopicRestricted()) && !channel.HasClient(fd))
+                continue;
+            std::vector<int> membersList = channel.GetClients();
+            std::string namesList;
+            for (size_t i = 0; i < membersList.size(); i++)
+            {
+                Client *member = server.GetClientByFd(membersList[i]);
+                if (!member)
+                    continue;
+                if (channel.IsOperator(membersList[i]))
+                    namesList += "@";
+                namesList += member->GetNickname();
+                if (i + 1 < membersList.size())
+                    namesList += " ";
+            }
+            server.SendMessage(fd, "353 " + nick + " = " + channel.GetName() + " :" + namesList + "\r\n");
+            server.SendMessage(fd, "366 " + nick + " " + channel.GetName() + " :End of /NAMES list.\r\n");
+        }
+    }
 }
+
+/**
+ * handleList
+ * cmd LIST pour afficher la liste des channels et leur sujet.
+ * Filtre selon les droits d'accès du client.
+ */
 void handleList(Server& server, int fd, const std::vector<std::string>& tokens)
 {
-    
+    Client *client = server.GetClientByFd(fd);
+    std::string nick;
+    if (client)
+        nick = client->GetNickname();
+    else
+        nick = "*";
+
+    server.SendMessage(fd, "321 " + nick + " Channel :Users  Name\r\n");
+
+    // si le channel est précisé
+    if (tokens.size() > 1)
+    {
+        std::string channelName = tokens[1];
+        Channel *channel = server.GetChannel(channelName);
+        if (channel)
+        {
+            if ((channel->IsInviteOnly() || channel->IsTopicRestricted()) && !channel->HasClient(fd))
+                return;
+            std::string topic = channel->GetTopic();
+            int userCount = channel->GetClientCount();
+            std::ostringstream oss;
+            oss << userCount;
+            server.SendMessage(fd, "322 " + nick + " " + channel->GetName() + " " + oss.str() + " :" + topic + "\r\n");
+        }
+    }
+    else
+    {
+        // sinon, listing de tous les channels visible
+        for (size_t i = 0; i < server.channels.size(); i++)
+        {
+            Channel &channel = server.channels[i];
+            if ((channel.IsInviteOnly() || channel.IsTopicRestricted()) && !channel.HasClient(fd))
+                continue;
+            std::string topic = channel.GetTopic();
+            int userCount = channel.GetClientCount();
+            std::ostringstream oss;
+            oss << userCount;
+            server.SendMessage(fd, "322 " + nick + " " + channel.GetName() + " " + oss.str() + " :" + topic + "\r\n");
+        }
+    }
+    server.SendMessage(fd, "323 " + nick + " :End of /LIST\r\n");
 }

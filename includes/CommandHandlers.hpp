@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:28 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/24 23:49:41 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/26 13:54:58 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,6 +15,7 @@
 #include "Server.hpp"
 #include <vector>
 #include <string>
+#include <sstream>
 
 // Changement du nickname du client
 void handleNick(Server& server, int fd, const std::vector<std::string>& tokens);
