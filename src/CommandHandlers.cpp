@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/28 11:08:29 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/28 11:14:58 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -307,7 +307,7 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, " 403 " + channelName + " :No such channel\r\n");
+        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
@@ -394,7 +394,7 @@ void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
             comment += tokens[i];
         }
     }
-    std::string kickMsg = ":" + client->GetNickname() + "KICK " + channelName + " " + targetNick + " :" + comment + "\r\n";
+    std::string kickMsg = ":" + client->GetNickname() + " KICK " + channelName + " " + targetNick + " :" + comment + "\r\n";
     server.BroadcastToChannel(channelName, kickMsg, -1);
     server.SendMessage(target->GetFd(), kickMsg);
     channel->RemoveClient(target->GetFd());
@@ -442,7 +442,7 @@ void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens
         return;
     }
 
-    channel->AddClient(inviter->GetFd());
+    //channel->AddClient(inviter->GetFd());
     std::string inviteMsg = ":" + client->GetNickname() + " INVITE " + inviterNick + " :" + channelName + "\r\n";
     server.SendMessage(inviter->GetFd(), inviteMsg);
     server.SendMessage(fd, "341 " + client->GetNickname() + " " + inviterNick + " " + channelName + "\r\n");
