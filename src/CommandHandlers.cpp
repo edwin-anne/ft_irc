@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/28 10:07:18 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/28 10:54:48 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -558,7 +558,7 @@ void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, "482 " + channelName + " :No such channel\r\n");
+        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
@@ -577,5 +577,66 @@ void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
         server.SendMessage(fd, "324 " + client->GetNickname() + " " + channelName + " " + modes + "\r\n");
         return;
     }
-    
+    std::string modestr = tokens[2];
+    bool actived = true;
+    size_t index  = 3;
+    for (size_t i = 0; i < modestr.size(); i++)
+    {
+        char mode = modestr[i];
+        if (mode == '+')
+            actived = true;
+        else if (mode == '-')
+            actived = false;
+        else if (mode == 'i')
+            channel->SetInviteOnly(actived);
+        else if (mode == 't')
+            channel->SetTopicRestricted(actived);
+        else if (mode == 'k')
+        {
+            if (actived)
+            {
+                if (index < tokens.size())
+                    channel->SetKey(tokens[index++]);
+                else
+                    server.SendMessage(fd, "461 MODE :Not enough parameters for +k\r\n");
+            }
+            else
+                channel->RemoveKey();
+        }
+        else if (mode == 'l')
+        {
+            if (actived)
+            {
+                if (index < tokens.size())
+                    channel->SetUserLimit(atoi(tokens[index++].c_str()));
+                else 
+                    server.SendMessage(fd, "461 MODE :Not enough parameters for +l\r\n");
+            }
+            else
+                channel->RemoveUserLimit();
+        }
+        else if (mode == 'o')
+        {
+            if (index < tokens.size())
+            {
+                std::string nickname = tokens[index++];
+                Client *curr = server.GetClientByNick(nickname);
+                if (curr)
+                {
+                    if (actived)
+                        channel->AddOperator(curr->GetFd());
+                    else
+                        channel->RemoveOperator(curr->GetFd());
+                }
+                else
+                    server.SendMessage(fd, "401 " + nickname + " :No such nick/channel\r\n");
+            }
+            else
+                server.SendMessage(fd, "461 MODE :Not enough parameters for +o/-o\r\n");
+        }
+        else
+        {
+            server.SendMessage(fd, "472 " + std::string(1, mode) + " :is unknown mode char to me\r\n");
+        }
+    }
 }
