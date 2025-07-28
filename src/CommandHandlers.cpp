@@ -6,7 +6,7 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/28 10:54:48 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/28 11:08:29 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -171,6 +171,24 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
         channel = server.CreateChannel(channelName);
+    if (channel->IsInviteOnly() && !channel->IsInvited(fd)) // ! implementer une gestion de a liste des invités !
+    {
+        server.SendMessage(fd, "473 " + channelName + " :Cannot join channel (+i)\r\n");
+        return;
+    }
+    if (channel->HasKey())
+    {
+        if (tokens.size() < 3 || !channel->CheckKey(tokens[2]))
+        {
+            server.SendMessage(fd, "475 " + channelName + " :Cannot join channel (+k)\r\n");
+            return;
+        }
+    }
+    if (channel->GetUserLimit() > 0 && channel->GetClientCount() >= channel->GetUserLimit())
+    {
+        server.SendMessage(fd, "471 " + channelName + " :Cannot join channel (+l)\r\n");
+        return;
+    }
     channel->AddClient(fd);
     server.SendMessage(fd, ":" + client->GetNickname() + " JOIN " + channelName + "\r\n");
 }
@@ -307,6 +325,12 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
             server.SendMessage(fd, "332 " + client->GetNickname() + " " + channelName + " :" + topic + "\r\n");
         return;
     }
+    // TODO: Vérifier le mode +t ici
+    if (channel->IsTopicRestricted() && !channel->IsOperator(fd))
+    {
+        server.SendMessage(fd, "482 " + channelName + " :You're not channel operator\r\n");
+        return;
+    }
     std::string newTopic;
     if (tokens[2][0] == ':')
         newTopic = tokens[2].substr(1);
@@ -317,8 +341,7 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
         newTopic += " ";
         newTopic += tokens[i];
     }
-    // TODO: Vérifier le mode +t ici
-
+    // notifier l'ensemble des membres du changement de topic
 }
 
 /**
