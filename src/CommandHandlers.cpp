@@ -6,13 +6,14 @@
 /*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/26 13:53:54 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/28 10:07:18 by loribeir         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "CommandHandlers.hpp"
 #include "Channel.hpp"
 #include "Client.hpp"
+
 
 /**
  * handleNick
@@ -540,4 +541,41 @@ void handleList(Server& server, int fd, const std::vector<std::string>& tokens)
         }
     }
     server.SendMessage(fd, "323 " + nick + " :End of /LIST\r\n");
+}
+
+/** 
+ * handleMode
+ * cmd MODE pur gérer les mode : +i, +t, +k, +l
+ */
+void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    if (tokens.size() < 2)
+    {
+        server.SendMessage(fd, "461 MODE :Not enough parameters\r\n");
+        return;
+    }
+    std::string channelName = tokens[1];
+    Channel *channel = server.GetChannel(channelName);
+    if (!channel)
+    {
+        server.SendMessage(fd, "482 " + channelName + " :No such channel\r\n");
+        return;
+    }
+    Client *client = server.GetClientByFd(fd);
+    if (!client || !channel->IsOperator(fd))
+    {
+        server.SendMessage(fd, "482 " + channelName + " :You're not channel operator\r\n");
+        return;
+    }
+    if (tokens.size() == 2)
+    {
+        std::string modes = "+";
+        if (channel->IsInviteOnly()) modes += "i";
+        if (channel->IsTopicRestricted()) modes += "t";
+        if (channel->HasKey()) modes += "k";
+        if (channel->GetUserLimit() > 0) modes += "l";
+        server.SendMessage(fd, "324 " + client->GetNickname() + " " + channelName + " " + modes + "\r\n");
+        return;
+    }
+    
 }
