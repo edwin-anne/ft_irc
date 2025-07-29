@@ -3,16 +3,17 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandlers.cpp                                :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: loribeir <loribeir@student.42.fr>          +#+  +:+       +#+        */
+/*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/28 11:14:58 by loribeir         ###   ########.fr       */
+/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "CommandHandlers.hpp"
 #include "Channel.hpp"
 #include "Client.hpp"
+#include <cstdlib>
 
 
 /**
@@ -184,7 +185,7 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
             return;
         }
     }
-    if (channel->GetUserLimit() > 0 && channel->GetClientCount() >= channel->GetUserLimit())
+    if (channel->GetUserLimit() > 0 && (int)channel->GetClientCount() >= channel->GetUserLimit())
     {
         server.SendMessage(fd, "471 " + channelName + " :Cannot join channel (+l)\r\n");
         return;

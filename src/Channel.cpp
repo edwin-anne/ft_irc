@@ -6,7 +6,7 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/11 21:03:43 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/24 11:34:35 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -137,4 +137,26 @@ bool Channel::IsOperator(int fd) const {
 			return (true);
 	}
 	return (false);
+}
+
+void Channel::AddInvited(int fd) {
+	if (!IsInvited(fd))
+		invited.push_back(fd);
+}
+
+void Channel::RemoveInvited(int fd) {
+	for (size_t i = 0; i < invited.size(); i++) {
+		if (invited[i] == fd) {
+			invited.erase(invited.begin() + i);
+			break;
+		}
+	}
+}
+
+bool Channel::IsInvited(int fd) const {
+	for (size_t i = 0; i < invited.size(); i++) {
+		if (invited[i] == fd)
+			return true;
+	}
+	return false;
 }

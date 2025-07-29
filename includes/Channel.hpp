@@ -6,7 +6,7 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/11 21:03:27 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/24 11:34:10 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,6 +25,7 @@ class Channel
 		std::string topic; // Sujet du channel
 		std::vector<int> clients; // Liste des descripteurs de fichiers des clients connectés au channel
 		std::vector<int> operators; // Liste des opérateurs du channel
+		std::vector<int> invited; // Liste des clients invités
 		
 		// Modes du channel
 		bool inviteOnly; // Mode +i : Canal sur invitation uniquement
@@ -77,6 +78,11 @@ class Channel
 		int GetUserLimit() const;
 		bool HasUserLimit() const;
 		bool IsAtUserLimit() const;
+		
+		// Gestion des invitations
+		void AddInvited(int fd);
+		void RemoveInvited(int fd);
+		bool IsInvited(int fd) const;
 };
 
 #endif
