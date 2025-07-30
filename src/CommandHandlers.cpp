@@ -25,20 +25,24 @@ void handleNick(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2) 
     {
-        server.SendMessage(fd, "431 :No nickname given\r\n");
+        server.SendMessage(fd, "431 * :No nickname given\r\n");
         return;
     }
     std::string newNick = tokens[1];
     if (server.IsNicknameTaken(newNick)) 
     {
-        server.SendMessage(fd, "433 " + newNick + " :Nickname is already in use\r\n");
+        server.SendMessage(fd, "433 * " + newNick + " :Nickname is already in use\r\n");
         return;
     }
     Client* client = server.GetClientByFd(fd);
     if (client) 
     {
+        std::string oldNick = client->GetNickname();
         client->SetNickname(newNick);
-        server.SendMessage(fd, "NICK :" + newNick + "\r\n");
+        if (oldNick.empty())
+            server.SendMessage(fd, ":" + newNick + " NICK " + newNick + "\r\n");
+        else
+            server.SendMessage(fd, ":" + oldNick + " NICK " + newNick + "\r\n");
     }
 }
 
@@ -51,7 +55,7 @@ void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2) 
     {
-        server.SendMessage(fd, "461 PASS :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * PASS :Not enough parameters\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
@@ -59,15 +63,15 @@ void handlePass(Server& server, int fd, const std::vector<std::string>& tokens)
         return;
     if (client->IsAuthenticated())
     {
-        server.SendMessage(fd, "462 :You may not reregister\r\n");
+        server.SendMessage(fd, "462 * :You may not reregister\r\n");
         return;
     }
     if (tokens[1] == server.getPassword())
     {
         client->SetAuthenticated(true);
-        server.SendMessage(fd, "NOTICE AUTH : Password accepted\r\n");
+        server.SendMessage(fd, "NOTICE * :*** Password accepted\r\n");
     } else {
-        server.SendMessage(fd, "464 : Password incorrect\r\n");
+        server.SendMessage(fd, "464 * :Password incorrect\r\n");
     }
 }
 
@@ -80,12 +84,22 @@ void handleUser(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 5)
     {
-        server.SendMessage(fd, "461 USER :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * USER :Not enough parameters\r\n");
         return;
     }   
     Client *client = server.GetClientByFd(fd);
     if (!client)
         return;
+    if (client->IsRegistered()) 
+    {
+        server.SendMessage(fd, "462 * :You may not reregister\r\n");
+        return;
+    }
+    if (!client->IsAuthenticated())
+    {
+        server.SendMessage(fd, "464 * :Password required\r\n");
+        return;
+    }
     client->SetUsername(tokens[1]);
     std::string realname;
     if (tokens[4][0] == ':')
@@ -95,11 +109,6 @@ void handleUser(Server& server, int fd, const std::vector<std::string>& tokens)
     for (size_t i = 5; i < tokens.size(); i++)
         realname += " " + tokens[i];
     client->SetRealname(realname);
-    if (client->IsRegistered()) 
-    {
-        server.SendMessage(fd, "462 :You may not reregister\r\n");
-        return;
-    }
     if (!client->GetNickname().empty())
     {
         client->SetRegistered(true);
@@ -116,10 +125,10 @@ void handlePing(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
     {
-        server.SendMessage(fd, "409 :No origin specified\r\n");
+        server.SendMessage(fd, "409 * :No origin specified\r\n");
         return;
     }
-    server.SendMessage(fd, "PONG " + tokens[1] + "\r\n");
+    server.SendMessage(fd, "PONG ircserv :" + tokens[1] + "\r\n");
 }
 
 /**
@@ -132,14 +141,25 @@ void handleQuit(Server& server, int fd, const std::vector<std::string>& tokens)
     Client *client = server.GetClientByFd(fd);
     if (!client)
         return;
-    std::string quitMsg = "Client quit";
+    std::string quitMsg = "Quit";
     if (tokens.size() > 1)
     {
-        quitMsg = tokens[1];
+        if (tokens[1][0] == ':')
+            quitMsg = tokens[1].substr(1);
+        else
+            quitMsg = tokens[1];
         for (size_t i = 2; i < tokens.size(); i++)
             quitMsg += " " + tokens[i];
     }
-    server.SendMessage(fd, "ERROR :Closing Link: " + quitMsg + "\r\n");
+    
+    // Broadcaster le QUIT à tous les channels
+    std::vector<std::string> clientChannels = client->GetChannels();
+    for (size_t i = 0; i < clientChannels.size(); i++) {
+        std::string quitBroadcast = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " QUIT :" + quitMsg + "\r\n";
+        server.BroadcastToChannel(clientChannels[i], quitBroadcast, fd);
+    }
+    
+    server.SendMessage(fd, "ERROR :Closing Link: " + client->GetNickname() + " (" + quitMsg + ")\r\n");
     server.ClearClients(fd);
 }
 
@@ -152,13 +172,13 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
     {
-        server.SendMessage(fd, "461 JOIN :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * JOIN :Not enough parameters\r\n");
         return;
     }
     std::string channelName = tokens[1];
     if (channelName.empty() || (channelName[0] != '#' && channelName[0] != '&'))
     {
-        server.SendMessage(fd, "476 " + channelName + " :Invalid channel name\r\n");
+        server.SendMessage(fd, "403 * " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
@@ -166,32 +186,48 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
         return;
     if (!client->IsRegistered())
     {
-        server.SendMessage(fd, "451 JOIN :You have not registered\r\n");
+        server.SendMessage(fd, "451 * :You have not registered\r\n");
         return;
     }
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
-        channel = server.CreateChannel(channelName);
-    if (channel->IsInviteOnly() && !channel->IsInvited(fd)) // ! implementer une gestion de a liste des invités !
     {
-        server.SendMessage(fd, "473 " + channelName + " :Cannot join channel (+i)\r\n");
+        channel = server.CreateChannel(channelName);
+        // Le premier utilisateur devient opérateur
+        channel->AddOperator(fd);
+    }
+    if (channel->IsInviteOnly() && !channel->IsInvited(fd) && !channel->IsOperator(fd))
+    {
+        server.SendMessage(fd, "473 " + client->GetNickname() + " " + channelName + " :Cannot join channel (+i)\r\n");
         return;
     }
     if (channel->HasKey())
     {
         if (tokens.size() < 3 || !channel->CheckKey(tokens[2]))
         {
-            server.SendMessage(fd, "475 " + channelName + " :Cannot join channel (+k)\r\n");
+            server.SendMessage(fd, "475 " + client->GetNickname() + " " + channelName + " :Cannot join channel (+k)\r\n");
             return;
         }
     }
-    if (channel->GetUserLimit() > 0 && (int)channel->GetClientCount() >= channel->GetUserLimit())
+    if (channel->HasUserLimit() && channel->IsAtUserLimit())
     {
-        server.SendMessage(fd, "471 " + channelName + " :Cannot join channel (+l)\r\n");
+        server.SendMessage(fd, "471 " + client->GetNickname() + " " + channelName + " :Cannot join channel (+l)\r\n");
         return;
     }
     channel->AddClient(fd);
-    server.SendMessage(fd, ":" + client->GetNickname() + " JOIN " + channelName + "\r\n");
+    client->JoinChannel(channelName);
+    // Supprimer de la liste des invités si il y était
+    channel->RemoveInvited(fd);
+    
+    std::string joinMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " JOIN " + channelName + "\r\n";
+    server.BroadcastToChannel(channelName, joinMsg, -1);
+    
+    // Envoyer le topic si il existe
+    std::string topic = channel->GetTopic();
+    if (!topic.empty())
+        server.SendMessage(fd, "332 " + client->GetNickname() + " " + channelName + " :" + topic + "\r\n");
+    else
+        server.SendMessage(fd, "331 " + client->GetNickname() + " " + channelName + " :No topic is set\r\n");
 }
 
 /**
@@ -203,26 +239,38 @@ void handlePart(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
     {
-        server.SendMessage(fd, "461 PART :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * PART :Not enough parameters\r\n");
         return;
     }
     std::string channelName = tokens[1];
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
+        server.SendMessage(fd, "403 * " + channelName + " :No such channel\r\n");
         return;
     }
     if (!channel->HasClient(fd))
     {
-        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        server.SendMessage(fd, "442 * " + channelName + " :You're not on that channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
     if (client)
         client->LeaveChannel(channelName);
     channel->RemoveClient(fd);
-    std::string partMsg = ":" + client->GetNickname() + " PART " + channelName + "\r\n";
+    
+    std::string partMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " PART " + channelName;
+    if (tokens.size() > 2) {
+        partMsg += " :";
+        if (tokens[2][0] == ':')
+            partMsg += tokens[2].substr(1);
+        else
+            partMsg += tokens[2];
+        for (size_t i = 3; i < tokens.size(); i++)
+            partMsg += " " + tokens[i];
+    }
+    partMsg += "\r\n";
+    
     server.BroadcastToChannel(channelName, partMsg, fd);
     server.SendMessage(fd, partMsg);
 }
@@ -234,15 +282,20 @@ void handlePart(Server& server, int fd, const std::vector<std::string>& tokens)
  */
 void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& tokens)
 {
+    if (tokens.size() < 2)
+    {
+        server.SendMessage(fd, "411 * :No recipient given\r\n");
+        return;
+    }
     if (tokens.size() < 3)
     {
-        server.SendMessage(fd, "411 PRIVMSG :No recipient given\r\n");
+        server.SendMessage(fd, "412 * :No text to send\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
     if (!client || !client->IsRegistered())
     {
-        server.SendMessage(fd, "451 PRIVMSG :You have not registered\r\n");
+        server.SendMessage(fd, "451 * :You have not registered\r\n");
         return;
     }
     std::string dest = tokens[1];
@@ -260,7 +313,7 @@ void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& token
     }
     if (message.empty())
     {
-        server.SendMessage(fd, "412 PRIVMSG :No text to send\r\n");
+        server.SendMessage(fd, "412 * :No text to send\r\n");
         return;
     }
     if (dest[0] == '#' || dest[0] == '&')
@@ -268,15 +321,15 @@ void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& token
         Channel *channel = server.GetChannel(dest);
         if (!channel)
         {
-            server.SendMessage(fd, "401 " + dest + " :No such nick/channel\r\n");
+            server.SendMessage(fd, "401 " + client->GetNickname() + " " + dest + " :No such nick/channel\r\n");
             return;
         }
         if (!channel->HasClient(fd))
         {
-            server.SendMessage(fd, "404 " + dest + " :Cannot send to channel\r\n");
+            server.SendMessage(fd, "404 " + client->GetNickname() + " " + dest + " :Cannot send to channel\r\n");
             return;
         }
-        std::string privmsg = ":" + client->GetNickname() + " PRIVMSG " + dest + " :" + message + "\r\n";
+        std::string privmsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " PRIVMSG " + dest + " :" + message + "\r\n";
         server.BroadcastToChannel(dest, privmsg, fd);
     }
     else
@@ -284,10 +337,10 @@ void handlePrivmsg(Server& server, int fd, const std::vector<std::string>& token
         Client *target = server.GetClientByNick(dest);
         if (!target)
         {
-            server.SendMessage(fd, "401 " + dest + " :No such nick/channel\r\n");
+            server.SendMessage(fd, "401 " + client->GetNickname() + " " + dest + " :No such nick/channel\r\n");
             return;
         }
-        std::string privmsg = ":" + client->GetNickname() + " PRIVMSG " + dest + " :" + message + "\r\n";
+        std::string privmsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " PRIVMSG " + dest + " :" + message + "\r\n";
         server.SendMessage(target->GetFd(), privmsg);
     }
 }
@@ -301,20 +354,20 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
     {
-        server.SendMessage(fd, "461 TOPIC :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * TOPIC :Not enough parameters\r\n");
         return;
     }
     std::string channelName = tokens[1];
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
+        server.SendMessage(fd, "403 * " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
     if (!client || !channel->HasClient(fd))
     {
-        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        server.SendMessage(fd, "442 " + client->GetNickname() + " " + channelName + " :You're not on that channel\r\n");
         return;
     }
     if (tokens.size() < 3)
@@ -326,10 +379,9 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
             server.SendMessage(fd, "332 " + client->GetNickname() + " " + channelName + " :" + topic + "\r\n");
         return;
     }
-    // TODO: Vérifier le mode +t ici
     if (channel->IsTopicRestricted() && !channel->IsOperator(fd))
     {
-        server.SendMessage(fd, "482 " + channelName + " :You're not channel operator\r\n");
+        server.SendMessage(fd, "482 " + client->GetNickname() + " " + channelName + " :You're not channel operator\r\n");
         return;
     }
     std::string newTopic;
@@ -342,7 +394,9 @@ void handleTopic(Server& server, int fd, const std::vector<std::string>& tokens)
         newTopic += " ";
         newTopic += tokens[i];
     }
-    // notifier l'ensemble des membres du changement de topic
+    channel->SetTopic(newTopic);
+    std::string topicMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " TOPIC " + channelName + " :" + newTopic + "\r\n";
+    server.BroadcastToChannel(channelName, topicMsg, -1);
 }
 
 /**
@@ -354,32 +408,32 @@ void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 3)
     {
-        server.SendMessage(fd, "461 KICK :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * KICK :Not enough parameters\r\n");
         return;
     }
     std::string channelName = tokens[1];
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, "403 " + channelName + ": No such channel\r\n");
+        server.SendMessage(fd, "403 * " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
     if (!client || !channel->HasClient(fd))
     {
-        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        server.SendMessage(fd, "442 " + client->GetNickname() + " " + channelName + " :You're not on that channel\r\n");
         return;    
     }
     if (!channel->IsOperator(fd))
     {
-        server.SendMessage(fd, "482 " + channelName + ": You're not channel operator\r\n");
+        server.SendMessage(fd, "482 " + client->GetNickname() + " " + channelName + " :You're not channel operator\r\n");
         return;
     }
     std::string targetNick = tokens[2];
     Client *target = server.GetClientByNick(targetNick);
     if (!target || !channel->HasClient(target->GetFd()))
     {
-        server.SendMessage(fd, "441 " + targetNick + " " + channelName + " :They aren't on that channel\r\n");
+        server.SendMessage(fd, "441 " + client->GetNickname() + " " + targetNick + " " + channelName + " :They aren't on that channel\r\n");
         return;
     }
     std::string comment = client->GetNickname();
@@ -395,9 +449,8 @@ void handleKick(Server& server, int fd, const std::vector<std::string>& tokens)
             comment += tokens[i];
         }
     }
-    std::string kickMsg = ":" + client->GetNickname() + " KICK " + channelName + " " + targetNick + " :" + comment + "\r\n";
+    std::string kickMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " KICK " + channelName + " " + targetNick + " :" + comment + "\r\n";
     server.BroadcastToChannel(channelName, kickMsg, -1);
-    server.SendMessage(target->GetFd(), kickMsg);
     channel->RemoveClient(target->GetFd());
     target->LeaveChannel(channelName);
 
@@ -412,41 +465,41 @@ void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens
 {
     if (tokens.size() < 3)
     {
-        server.SendMessage(fd, "461 INVITE :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * INVITE :Not enough parameters\r\n");
         return;
     }
-    std::string channelName = tokens[1];
-    std::string inviterNick = tokens[2];
+    std::string targetNick = tokens[1];
+    std::string channelName = tokens[2];
     
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
+        server.SendMessage(fd, "403 * " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
     if (!client || !channel->HasClient(fd))
     {
-        server.SendMessage(fd, "442 " + channelName + " :You're not on that channel\r\n");
+        server.SendMessage(fd, "442 " + client->GetNickname() + " " + channelName + " :You're not on that channel\r\n");
         return;
     }
     
-    Client *inviter = server.GetClientByNick(inviterNick);
-    if (!inviter)
+    Client *target = server.GetClientByNick(targetNick);
+    if (!target)
     {
-        server.SendMessage(fd, "401 " + inviterNick + " :No such nick/channel\r\n");
+        server.SendMessage(fd, "401 " + client->GetNickname() + " " + targetNick + " :No such nick/channel\r\n");
         return;
     }
-    if (channel->HasClient(inviter->GetFd()))
+    if (channel->HasClient(target->GetFd()))
     {
-        server.SendMessage(fd, "443 " + inviterNick + " " + channelName + " :is already on channel\r\n");
+        server.SendMessage(fd, "443 " + client->GetNickname() + " " + targetNick + " " + channelName + " :is already on channel\r\n");
         return;
     }
 
-    //channel->AddClient(inviter->GetFd());
-    std::string inviteMsg = ":" + client->GetNickname() + " INVITE " + inviterNick + " :" + channelName + "\r\n";
-    server.SendMessage(inviter->GetFd(), inviteMsg);
-    server.SendMessage(fd, "341 " + client->GetNickname() + " " + inviterNick + " " + channelName + "\r\n");
+    channel->AddInvited(target->GetFd());
+    std::string inviteMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " INVITE " + targetNick + " :" + channelName + "\r\n";
+    server.SendMessage(target->GetFd(), inviteMsg);
+    server.SendMessage(fd, "341 " + client->GetNickname() + " " + targetNick + " " + channelName + "\r\n");
 }
 
 /**
@@ -575,20 +628,20 @@ void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     if (tokens.size() < 2)
     {
-        server.SendMessage(fd, "461 MODE :Not enough parameters\r\n");
+        server.SendMessage(fd, "461 * MODE :Not enough parameters\r\n");
         return;
     }
     std::string channelName = tokens[1];
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
     {
-        server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
+        server.SendMessage(fd, "403 * " + channelName + " :No such channel\r\n");
         return;
     }
     Client *client = server.GetClientByFd(fd);
     if (!client || !channel->IsOperator(fd))
     {
-        server.SendMessage(fd, "482 " + channelName + " :You're not channel operator\r\n");
+        server.SendMessage(fd, "482 " + client->GetNickname() + " " + channelName + " :You're not channel operator\r\n");
         return;
     }
     if (tokens.size() == 2)
@@ -612,32 +665,61 @@ void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
         else if (mode == '-')
             actived = false;
         else if (mode == 'i')
+        {
             channel->SetInviteOnly(actived);
+            std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " " + (actived ? "+i" : "-i") + "\r\n";
+            server.BroadcastToChannel(channelName, modeMsg, -1);
+        }
         else if (mode == 't')
+        {
             channel->SetTopicRestricted(actived);
+            std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " " + (actived ? "+t" : "-t") + "\r\n";
+            server.BroadcastToChannel(channelName, modeMsg, -1);
+        }
         else if (mode == 'k')
         {
             if (actived)
             {
                 if (index < tokens.size())
-                    channel->SetKey(tokens[index++]);
+                {
+                    channel->SetKey(tokens[index]);
+                    std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " +k " + tokens[index] + "\r\n";
+                    server.BroadcastToChannel(channelName, modeMsg, -1);
+                    index++;
+                }
                 else
-                    server.SendMessage(fd, "461 MODE :Not enough parameters for +k\r\n");
+                    server.SendMessage(fd, "461 " + client->GetNickname() + " MODE :Not enough parameters for +k\r\n");
             }
             else
+            {
                 channel->RemoveKey();
+                std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " -k\r\n";
+                server.BroadcastToChannel(channelName, modeMsg, -1);
+            }
         }
         else if (mode == 'l')
         {
             if (actived)
             {
                 if (index < tokens.size())
-                    channel->SetUserLimit(atoi(tokens[index++].c_str()));
+                {
+                    int limit = atoi(tokens[index].c_str());
+                    channel->SetUserLimit(limit);
+                    std::ostringstream oss;
+                    oss << limit;
+                    std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " +l " + oss.str() + "\r\n";
+                    server.BroadcastToChannel(channelName, modeMsg, -1);
+                    index++;
+                }
                 else 
-                    server.SendMessage(fd, "461 MODE :Not enough parameters for +l\r\n");
+                    server.SendMessage(fd, "461 " + client->GetNickname() + " MODE :Not enough parameters for +l\r\n");
             }
             else
+            {
                 channel->RemoveUserLimit();
+                std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " -l\r\n";
+                server.BroadcastToChannel(channelName, modeMsg, -1);
+            }
         }
         else if (mode == 'o')
         {
@@ -651,16 +733,18 @@ void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
                         channel->AddOperator(curr->GetFd());
                     else
                         channel->RemoveOperator(curr->GetFd());
+                    std::string modeMsg = ":" + client->GetNickname() + "!" + client->GetUsername() + "@" + client->GetIPadd() + " MODE " + channelName + " " + (actived ? "+o" : "-o") + " " + nickname + "\r\n";
+                    server.BroadcastToChannel(channelName, modeMsg, -1);
                 }
                 else
-                    server.SendMessage(fd, "401 " + nickname + " :No such nick/channel\r\n");
+                    server.SendMessage(fd, "401 " + client->GetNickname() + " " + nickname + " :No such nick/channel\r\n");
             }
             else
-                server.SendMessage(fd, "461 MODE :Not enough parameters for +o/-o\r\n");
+                server.SendMessage(fd, "461 " + client->GetNickname() + " MODE :Not enough parameters for +o/-o\r\n");
         }
         else
         {
-            server.SendMessage(fd, "472 " + std::string(1, mode) + " :is unknown mode char to me\r\n");
+            server.SendMessage(fd, "472 " + client->GetNickname() + " " + std::string(1, mode) + " :is unknown mode char to me\r\n");
         }
     }
 }
