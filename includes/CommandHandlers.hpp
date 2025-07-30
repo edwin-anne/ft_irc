@@ -43,3 +43,5 @@ void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens
 void handleNames(Server& server, int fd, const std::vector<std::string>& tokens);
 // Lister les channels existants sur le serveur
 void handleList(Server& server, int fd, const std::vector<std::string>& tokens);
+//
+void handleMode(Server& server, int fd, const std::vector<std::string>& tokens);

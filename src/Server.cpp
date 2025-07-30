@@ -178,19 +178,21 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 	else if (command == "JOIN")
 		handleJoin(*this, fd, tokens);
 	else if (command == "PART")
-		;
+		handlePart(*this, fd, tokens);
 	else if (command == "PRIVMSG")
 		handlePrivmsg(*this, fd, tokens);
 	else if (command == "TOPIC")
-		;
+		handleTopic(*this, fd, tokens);
 	else if (command == "KICK")
-		;
+		handleKick(*this, fd, tokens);
 	else if (command == "INVITE")
-		;
+		handleInvite(*this, fd, tokens);
 	else if (command == "NAMES")
-		;
+		handleNames(*this, fd, tokens);
 	else if (command == "LIST")
-		;
+		handleList(*this, fd, tokens);
+	else if (command == "MODE")
+		handleMode(*this, fd, tokens);
 	else
 		SendMessage(fd, "421 " + command + " :Unknown command\r\n");
 }

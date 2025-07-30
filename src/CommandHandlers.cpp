@@ -171,7 +171,10 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
     }
     Channel *channel = server.GetChannel(channelName);
     if (!channel)
+    {
         channel = server.CreateChannel(channelName);
+        channel->AddOperator(fd);
+    }
     if (channel->IsInviteOnly() && !channel->IsInvited(fd)) // ! implementer une gestion de a liste des invités !
     {
         server.SendMessage(fd, "473 " + channelName + " :Cannot join channel (+i)\r\n");
