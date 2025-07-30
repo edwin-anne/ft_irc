@@ -6,14 +6,37 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/11 21:03:43 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/30 10:59:06 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Channel.hpp"
 #include <algorithm>
 
-Channel::Channel(const std::string& channelName) : name(channelName), inviteOnly(false), topicRestricted(false), userLimit(-1) {}
+Channel::Channel(const std::string& channelName) : name(channelName), topic(""), inviteOnly(false), topicRestricted(false), key(""), userLimit(-1) {}
+
+Channel::Channel(const Channel& other) 
+	: name(other.name), topic(other.topic), clients(other.clients), operators(other.operators), invited(other.invited),
+	  inviteOnly(other.inviteOnly), topicRestricted(other.topicRestricted), key(other.key), userLimit(other.userLimit) {}
+
+Channel& Channel::operator=(const Channel& other) {
+	if (this != &other) {
+		name = other.name;
+		topic = other.topic;
+		clients = other.clients;
+		operators = other.operators;
+		invited = other.invited;
+		inviteOnly = other.inviteOnly;
+		topicRestricted = other.topicRestricted;
+		key = other.key;
+		userLimit = other.userLimit;
+	}
+	return *this;
+}
+
+Channel::~Channel() {
+	
+}
 
 std::string Channel::GetName() const { 
 	return name; 

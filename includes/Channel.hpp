@@ -6,7 +6,7 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/11 21:03:27 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/30 10:59:08 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -35,6 +35,9 @@ class Channel
 		
 	public:
 		Channel(const std::string& channelName);
+		Channel(const Channel& other);
+		Channel& operator=(const Channel& other);
+		~Channel();
 		
 		// GET
 		std::string GetName() const;
