@@ -6,7 +6,7 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/21 18:59:17 by loribeir          #+#    #+#             */
-/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/30 16:22:20 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -145,7 +145,8 @@ void handleQuit(Server& server, int fd, const std::vector<std::string>& tokens)
 
 /**
  * handleJoin
- * cmd JOIN pour rejoindre un channel.
+ * cmd JOIN pour rejoindre un channel selon RFC 1459.
+ * Support pour plusieurs channels avec clés optionnelles.
  * Crée le channel si nécessaire et ajoute le client.
  */
 void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
@@ -155,46 +156,127 @@ void handleJoin(Server& server, int fd, const std::vector<std::string>& tokens)
         server.SendMessage(fd, "461 JOIN :Not enough parameters\r\n");
         return;
     }
-    std::string channelName = tokens[1];
-    if (channelName.empty() || (channelName[0] != '#' && channelName[0] != '&'))
-    {
-        server.SendMessage(fd, "476 " + channelName + " :Invalid channel name\r\n");
-        return;
-    }
+    
     Client *client = server.GetClientByFd(fd);
     if (!client)
         return;
     if (!client->IsRegistered())
     {
-        server.SendMessage(fd, "451 JOIN :You have not registered\r\n");
+        server.SendMessage(fd, "451 :You have not registered\r\n");
         return;
     }
-    Channel *channel = server.GetChannel(channelName);
-    if (!channel)
+
+    // Parse channels et clés
+    std::string channelsStr = tokens[1];
+    std::string keysStr = (tokens.size() > 2) ? tokens[2] : "";
+    
+    // Split channels par virgule
+    std::vector<std::string> channels;
+    std::vector<std::string> keys;
+    
+    size_t start = 0;
+    size_t pos = 0;
+    while ((pos = channelsStr.find(',', start)) != std::string::npos)
     {
-        channel = server.CreateChannel(channelName);
-        channel->AddOperator(fd);
+        channels.push_back(channelsStr.substr(start, pos - start));
+        start = pos + 1;
     }
-    if (channel->IsInviteOnly() && !channel->IsInvited(fd)) // ! implementer une gestion de a liste des invités !
+    channels.push_back(channelsStr.substr(start));
+    
+    // Split clés par virgule si elles existent
+    if (!keysStr.empty())
     {
-        server.SendMessage(fd, "473 " + channelName + " :Cannot join channel (+i)\r\n");
-        return;
+        start = 0;
+        pos = 0;
+        while ((pos = keysStr.find(',', start)) != std::string::npos)
+        {
+            keys.push_back(keysStr.substr(start, pos - start));
+            start = pos + 1;
+        }
+        keys.push_back(keysStr.substr(start));
     }
-    if (channel->HasKey())
+    
+    // Traiter chaque channel
+    for (size_t i = 0; i < channels.size(); ++i)
     {
-        if (tokens.size() < 3 || !channel->CheckKey(tokens[2]))
+        std::string channelName = channels[i];
+        std::string key = (i < keys.size()) ? keys[i] : "";
+        
+        // Validation du nom de channel
+        if (channelName.empty() || (channelName[0] != '#' && channelName[0] != '&'))
+        {
+            server.SendMessage(fd, "403 " + channelName + " :No such channel\r\n");
+            continue;
+        }
+        
+        // Vérifier si déjà dans le channel
+        Channel *channel = server.GetChannel(channelName);
+        if (channel && channel->HasClient(fd))
+            continue; // Déjà dans le channel, passer au suivant
+        
+        // Créer le channel s'il n'existe pas
+        if (!channel)
+        {
+            channel = server.CreateChannel(channelName);
+            channel->AddOperator(fd); // Le créateur devient opérateur
+        }
+        
+        // Vérifications RFC : invite-only, ban, key
+        if (channel->IsInviteOnly() && !channel->IsInvited(fd))
+        {
+            server.SendMessage(fd, "473 " + channelName + " :Cannot join channel (+i)\r\n");
+            continue;
+        }
+        
+        // TODO: Vérifier les bans (ERR_BANNEDFROMCHAN 474)
+        
+        if (channel->HasKey() && !channel->CheckKey(key))
         {
             server.SendMessage(fd, "475 " + channelName + " :Cannot join channel (+k)\r\n");
-            return;
+            continue;
         }
+        
+        if (channel->GetUserLimit() > 0 && (int)channel->GetClientCount() >= channel->GetUserLimit())
+        {
+            server.SendMessage(fd, "471 " + channelName + " :Cannot join channel (+l)\r\n");
+            continue;
+        }
+        
+        // Ajouter le client au channel
+        channel->AddClient(fd);
+        
+        // Broadcast JOIN à tous les membres du channel (y compris le nouveau)
+        std::string joinMsg = ":" + client->GetNickname() + " JOIN " + channelName + "\r\n";
+        server.BroadcastToChannel(channelName, joinMsg, -1);
+        
+        // Envoyer le topic si défini (RPL_TOPIC 332 ou RPL_NOTOPIC 331)
+        std::string topic = channel->GetTopic();
+        if (!topic.empty())
+        {
+            server.SendMessage(fd, "332 " + client->GetNickname() + " " + channelName + " :" + topic + "\r\n");
+        }
+        else
+        {
+            server.SendMessage(fd, "331 " + client->GetNickname() + " " + channelName + " :No topic is set\r\n");
+        }
+        
+        // Envoyer la liste des utilisateurs (RPL_NAMREPLY 353 + RPL_ENDOFNAMES 366)
+        std::vector<int> membersList = channel->GetClients();
+        std::string namesList;
+        for (size_t j = 0; j < membersList.size(); j++)
+        {
+            Client *member = server.GetClientByFd(membersList[j]);
+            if (!member)
+                continue;
+            if (channel->IsOperator(membersList[j]))
+                namesList += "@";
+            namesList += member->GetNickname();
+            if (j + 1 < membersList.size())
+                namesList += " ";
+        }
+        server.SendMessage(fd, "353 " + client->GetNickname() + " = " + channelName + " :" + namesList + "\r\n");
+        server.SendMessage(fd, "366 " + client->GetNickname() + " " + channelName + " :End of /NAMES list\r\n");
     }
-    if (channel->GetUserLimit() > 0 && (int)channel->GetClientCount() >= channel->GetUserLimit())
-    {
-        server.SendMessage(fd, "471 " + channelName + " :Cannot join channel (+l)\r\n");
-        return;
-    }
-    channel->AddClient(fd);
-    server.SendMessage(fd, ":" + client->GetNickname() + " JOIN " + channelName + "\r\n");
 }
 
 /**
@@ -446,7 +528,7 @@ void handleInvite(Server& server, int fd, const std::vector<std::string>& tokens
         return;
     }
 
-    //channel->AddClient(inviter->GetFd());
+    channel->AddClient(inviter->GetFd());
     std::string inviteMsg = ":" + client->GetNickname() + " INVITE " + inviterNick + " :" + channelName + "\r\n";
     server.SendMessage(inviter->GetFd(), inviteMsg);
     server.SendMessage(fd, "341 " + client->GetNickname() + " " + inviterNick + " " + channelName + "\r\n");
@@ -522,51 +604,111 @@ void handleNames(Server& server, int fd, const std::vector<std::string>& tokens)
 
 /**
  * handleList
- * cmd LIST pour afficher la liste des channels et leur sujet.
+ * cmd LIST pour afficher la liste des channels et leur sujet selon RFC 1459.
+ * Support pour plusieurs channels séparés par des virgules.
  * Filtre selon les droits d'accès du client.
  */
 void handleList(Server& server, int fd, const std::vector<std::string>& tokens)
 {
     Client *client = server.GetClientByFd(fd);
-    std::string nick;
-    if (client)
-        nick = client->GetNickname();
-    else
-        nick = "*";
+    if (!client || !client->IsRegistered())
+    {
+        server.SendMessage(fd, "451 :You have not registered\r\n");
+        return;
+    }
+    
+    std::string nick = client->GetNickname();
 
+    // RPL_LISTSTART (321)
     server.SendMessage(fd, "321 " + nick + " Channel :Users  Name\r\n");
 
-    // si le channel est précisé
+    // Si des channels spécifiques sont demandés
     if (tokens.size() > 1)
     {
-        std::string channelName = tokens[1];
-        Channel *channel = server.GetChannel(channelName);
-        if (channel)
+        std::string channelsStr = tokens[1];
+        std::vector<std::string> channels;
+        
+        // Parse channels séparés par virgules
+        size_t start = 0;
+        size_t pos = 0;
+        while ((pos = channelsStr.find(',', start)) != std::string::npos)
         {
-            if ((channel->IsInviteOnly() || channel->IsTopicRestricted()) && !channel->HasClient(fd))
-                return;
-            std::string topic = channel->GetTopic();
-            int userCount = channel->GetClientCount();
-            std::ostringstream oss;
-            oss << userCount;
-            server.SendMessage(fd, "322 " + nick + " " + channel->GetName() + " " + oss.str() + " :" + topic + "\r\n");
+            std::string channelName = channelsStr.substr(start, pos - start);
+            if (!channelName.empty())
+                channels.push_back(channelName);
+            start = pos + 1;
+        }
+        std::string lastChannel = channelsStr.substr(start);
+        if (!lastChannel.empty())
+            channels.push_back(lastChannel);
+        
+        // Traiter chaque channel demandé
+        for (size_t i = 0; i < channels.size(); ++i)
+        {
+            std::string channelName = channels[i];
+            Channel *channel = server.GetChannel(channelName);
+            
+            if (channel)
+            {
+                // Vérifier la visibilité : channels secret/private ne sont visibles que pour les membres
+                if ((channel->IsInviteOnly() || channel->IsTopicRestricted()) && !channel->HasClient(fd))
+                    continue;
+                
+                // RPL_LIST (322) - Format: "322 <nick> <channel> <# visible> :<topic>"
+                std::string topic = channel->GetTopic();
+                int userCount = channel->GetClientCount();
+                std::ostringstream oss;
+                oss << userCount;
+                
+                // Construire la chaîne des modes visibles
+                std::string modeString;
+                if (channel->IsInviteOnly()) modeString += "i";
+                if (channel->IsTopicRestricted()) modeString += "t";
+                if (channel->HasKey()) modeString += "k";
+                if (channel->GetUserLimit() > 0) modeString += "l";
+                
+                std::string channelDisplay = channel->GetName();
+                if (!modeString.empty())
+                    channelDisplay += " [+" + modeString + "]";
+                
+                server.SendMessage(fd, "322 " + nick + " " + channelDisplay + " " + oss.str() + " :" + topic + "\r\n");
+            }
+            // Note: selon RFC, pas d'erreur si le channel n'existe pas lors d'un LIST
         }
     }
     else
     {
-        // sinon, listing de tous les channels visible
+        // Lister tous les channels visibles
         for (size_t i = 0; i < server.channels.size(); i++)
         {
             Channel &channel = server.channels[i];
+            
+            // Vérifier la visibilité : channels secret/private ne sont visibles que pour les membres
             if ((channel.IsInviteOnly() || channel.IsTopicRestricted()) && !channel.HasClient(fd))
                 continue;
+            
+            // RPL_LIST (322) - Format: "322 <nick> <channel> <# visible> :<topic>"
             std::string topic = channel.GetTopic();
             int userCount = channel.GetClientCount();
             std::ostringstream oss;
             oss << userCount;
-            server.SendMessage(fd, "322 " + nick + " " + channel.GetName() + " " + oss.str() + " :" + topic + "\r\n");
+            
+            // Construire la chaîne des modes visibles
+            std::string modeString;
+            if (channel.IsInviteOnly()) modeString += "i";
+            if (channel.IsTopicRestricted()) modeString += "t";
+            if (channel.HasKey()) modeString += "k";
+            if (channel.GetUserLimit() > 0) modeString += "l";
+            
+            std::string channelDisplay = channel.GetName();
+            if (!modeString.empty())
+                channelDisplay += " [+" + modeString + "]";
+            
+            server.SendMessage(fd, "322 " + nick + " " + channelDisplay + " " + oss.str() + " :" + topic + "\r\n");
         }
     }
+    
+    // RPL_LISTEND (323)
     server.SendMessage(fd, "323 " + nick + " :End of /LIST\r\n");
 }
 
