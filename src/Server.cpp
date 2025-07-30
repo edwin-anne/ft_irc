@@ -141,17 +141,38 @@ void Server::ReceiveNewData(int fd) {
 	} else {
 		buff[bytes] = '\0';
 		std::cout << YEL << "Client <" << fd << "> Data: " << buff << WHI;
-		std::string message(buff);
-		ParseCommand(fd, message);
+		
+		Client* client = GetClientByFd(fd);
+		if (!client)
+			return;
+		
+		// Ajouter les nouvelles données au buffer du client
+		client->AppendToBuffer(std::string(buff));
+		
+		// Traiter toutes les commandes complètes dans le buffer
+		std::string buffer = client->GetBuffer();
+		size_t pos;
+		while ((pos = buffer.find_first_of("\r\n")) != std::string::npos) {
+			std::string command = buffer.substr(0, pos);
+			if (!command.empty())
+				ParseCommand(fd, command);
+			
+			// Supprimer la commande traitée du buffer
+			buffer.erase(0, pos + 1);
+			// Supprimer également \n si présent après \r
+			if (!buffer.empty() && buffer[0] == '\n')
+				buffer.erase(0, 1);
+		}
+		
+		// Sauvegarder le buffer restant
+		client->SetBuffer(buffer);
 	}
 }
 
 void Server::ParseCommand(int fd, std::string &cmd) {
-	size_t pos = cmd.find_first_of("\r\n");
-	if (pos != std::string::npos)
-		cmd = cmd.substr(0, pos);
 	if (cmd.empty())
 		return;
+	
 	std::vector<std::string> tokens;
 	std::string token;
 	std::istringstream iss(cmd);
@@ -159,6 +180,7 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 		tokens.push_back(token);
 	if (tokens.empty())
 		return;
+	
 	std::string command = tokens[0];
 	for (size_t i = 0; i < command.length(); i++)
 		command[i] = std::toupper(command[i]);

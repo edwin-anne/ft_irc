@@ -29,6 +29,7 @@ class Client
 		bool authenticated; // Indique si le client est authentifié
 		bool registered; // Indique si le client est enregistré
 		std::vector<std::string> channels; // Liste des channels auxquels le client est inscrit
+		std::string buffer; // Buffer pour les messages partiels
 		
 	public:
 		Client() : Fd(-1), authenticated(false), registered(false) {}
@@ -56,6 +57,12 @@ class Client
 		void JoinChannel(const std::string& channelName);
 		void LeaveChannel(const std::string& channelName);
 		bool IsInChannel(const std::string& channelName) const;
+
+		// Gestion du buffer
+		void AppendToBuffer(const std::string& data) { buffer += data; }
+		std::string GetBuffer() const { return buffer; }
+		void ClearBuffer() { buffer.clear(); }
+		void SetBuffer(const std::string& newBuffer) { buffer = newBuffer; }
 };
 
 
