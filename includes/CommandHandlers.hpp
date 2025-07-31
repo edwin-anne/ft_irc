@@ -45,3 +45,5 @@ void handleNames(Server& server, int fd, const std::vector<std::string>& tokens)
 void handleList(Server& server, int fd, const std::vector<std::string>& tokens);
 //
 void handleMode(Server& server, int fd, const std::vector<std::string>& tokens);
+//
+void handleCap(Server& server, int fd, const std::vector<std::string>& tokens);

@@ -809,3 +809,43 @@ void handleMode(Server& server, int fd, const std::vector<std::string>& tokens)
         }
     }
 }
+
+/**
+ * handleCap
+ * cmd JOIN pour rejoindre un channel selon RFC 1459.
+ * Support pour plusieurs channels avec clés optionnelles.
+ * Crée le channel si nécessaire et ajoute le client.
+ */
+void handleCap(Server& server, int fd, const std::vector<std::string>& tokens)
+{
+    if (tokens.size() < 2)
+        return;
+
+    std::string subcommand = tokens[1];
+
+    if (subcommand == "LS")
+    {
+        std::string capabilities = "multi-prefix sasl";
+        std::string reply = "CAP * LS :" + capabilities + "\r\n";
+        server.SendMessage(fd, reply);
+    }
+    else if (subcommand == "REQ" && tokens.size() >= 3)
+    {
+        std::string requested = tokens[2];
+        if (!requested.empty() && requested[0] == ':')
+            requested = requested.substr(1);
+
+        std::string reply = "CAP * ACK :" + requested + "\r\n";
+        server.SendMessage(fd, reply);
+    }
+    else if (subcommand == "END")
+    {
+        // CAP negotiation finished — now you can send welcome messages
+        Client* client = server.GetClientByFd(fd); // assume you have a way to get the nick
+        std::string nick = client->GetNickname();
+        server.SendMessage(fd, ":irc.local 001 " + nick + " :Welcome to the IRC server!\r\n");
+        server.SendMessage(fd, ":irc.local 002 " + nick + " :Your host is irc.local, running version 0.1\r\n");
+        server.SendMessage(fd, ":irc.local 003 " + nick + " :This server was created now\r\n");
+        server.SendMessage(fd, ":irc.local 004 " + nick + " irc.local 0.1 o o\r\n");
+    }
+}

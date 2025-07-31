@@ -193,6 +193,8 @@ void Server::ParseCommand(int fd, std::string &cmd) {
 		handleList(*this, fd, tokens);
 	else if (command == "MODE")
 		handleMode(*this, fd, tokens);
+	else if (command == "CAP")
+		handleCap(*this, fd, tokens);
 	else
 		SendMessage(fd, "421 " + command + " :Unknown command\r\n");
 }
