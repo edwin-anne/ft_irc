@@ -6,7 +6,7 @@
 /*   By: Edwin ANNE <eanne@student.42lehavre.fr>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/12 19:03:40 by Edwin ANNE        #+#    #+#             */
-/*   Updated: 2025/07/21 21:39:18 by Edwin ANNE       ###   ########.fr       */
+/*   Updated: 2025/07/29 21:37:47 by Edwin ANNE       ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,6 +31,8 @@ class Server
 		static bool Signal; // Variable pour gérer les signaux
 		std::vector<Client> clients; // Vecteur de clients connectés
 		std::vector<struct pollfd> fds; //fd pour envoyer des données aux clients
+		
+	public:
 		std::vector<Channel> channels; // Vecteur de channels
 		
 	public:
